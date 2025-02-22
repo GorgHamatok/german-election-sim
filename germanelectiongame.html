@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>German Election Poll Simulator (Dark Mode + Multilingual + Highlighted Arc)</title>
+  <style>
+    /* ---------- Base Styles ---------- */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f9f9f9;
+      color: #333;
+      transition: background 0.3s, color 0.3s;
+    }
+    h1, h2 {
+      margin-top: 0;
+      color: inherit;
+    }
+    .section {
+      border: 1px solid #ccc;
+      background: #fff;
+      padding: 15px;
+      margin-bottom: 20px;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .party-inputs {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      max-width: 400px;
+    }
+    .party {
+      display: flex;
+      align-items: center;
+    }
+    .party label {
+      width: 100px;
+    }
+    .party input[type="number"] {
+      width: 60px;
+      margin-left: 5px;
+    }
+    /* Controls */
+    #modeSelect, #pollSelect, #languageSelect {
+      font-size: 1rem;
+      padding: 5px;
+    }
+    button {
+      cursor: pointer;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 1rem;
+      transition: background 0.3s, color 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .color-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    /* In dark mode, add a light border around color indicators */
+    .dark-mode .color-indicator {
+      border: 1px solid #eee;
+    }
+    /* ---------- Coalition Boxes ---------- */
+    .coalition-parties {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .party-box {
+      width: 100px;
+      height: 140px;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      text-align: center;
+      padding: 5px;
+      box-sizing: border-box;
+      background-color: #fff;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .party-box.selected {
+      border-color: #007bff;
+      box-shadow: 0 0 10px rgba(0,123,255,0.6);
+    }
+    .party-logo {
+      max-width: 80px;
+      max-height: 50px;
+      object-fit: contain;
+      background-color: #fff;
+      margin-bottom: 5px;
+    }
+    .seat-count {
+      font-size: 14px;
+      font-weight: bold;
+      color: #000;
+    }
+    .english-name {
+      font-size: 12px;
+      color: #555;
+    }
+    #seatCanvas {
+      display: block;
+      margin: 20px auto;
+      border: 1px solid #ccc;
+      background: #fafafa;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    /* ---------- Dark Mode Styles ---------- */
+    .dark-mode {
+      background: #222;
+      color: #eee;
+    }
+    .dark-mode .section {
+      background: #333;
+      border-color: #555;
+    }
+    .dark-mode button {
+      background: #444;
+    }
+    .dark-mode button:hover {
+      background: #666;
+    }
+    .dark-mode .party-box {
+      background: #444;
+      border-color: #555;
+    }
+    .dark-mode .seat-count {
+      color: #eee;
+    }
+    .dark-mode .english-name {
+      color: #ccc;
+    }
+    .dark-mode #seatCanvas {
+      border-color: #555;
+      background: #555;
+    }
+  </style>
+</head>
+<body onload="initPage()">
+
+<!-- Top Bar: Language & Dark Mode -->
+<div style="margin-bottom:20px;">
+  <label id="languageLabel" for="languageSelect" style="font-weight:bold;">Language:</label>
+  <select id="languageSelect" onchange="onLanguageChange()">
+    <option value="en">English</option>
+    <option value="he">עברית</option>
+    <option value="de">Deutsch</option>
+  </select>
+  <button type="button" id="darkModeBtn" style="margin-left:20px;" onclick="toggleDarkMode()">
+    Toggle Dark Mode
+  </button>
+</div>
+
+<h1 id="mainTitle">German Election Poll Simulator</h1>
+
+<!-- 1. Choose Mode -->
+<div class="section">
+  <h2 id="chooseModeTitle">1. Choose Mode</h2>
+  <p>
+    <select id="modeSelect" onchange="switchMode()">
+      <option value="custom">Custom (Enter your own percentages)</option>
+      <option value="poll">Use a Poll</option>
+    </select>
+  </p>
+  <div id="pollSelectContainer" style="display:none;">
+    <label id="pollSelectLabel" for="pollSelect">Select a Poll:</label>
+    <select id="pollSelect" onchange="loadPollData()">
+      <!-- Options populated in initPage() -->
+    </select>
+  </div>
+</div>
+
+<!-- 2. Party Input Fields -->
+<div class="section" id="customContainer">
+  <h2 id="enterPartyTitle">2. Enter Party Percentages</h2>
+  <p id="enterPartyDesc">You can leave totals below 100% (remaining % is non‑voters/undecided). Above 100% is invalid.</p>
+  <div class="party-inputs">
+    <div class="party">
+      <label for="cduInput" id="cduInputLabel">CDU/CSU:</label>
+      <input type="number" id="cduInput" value="28" min="0" max="100">
+    </div>
+    <div class="party">
+      <label for="spdInput" id="spdInputLabel">SPD:</label>
+      <input type="number" id="spdInput" value="20" min="0" max="100">
+    </div>
+    <div class="party">
+      <label for="greensInput" id="greensInputLabel">Greens:</label>
+      <input type="number" id="greensInput" value="17" min="0" max="100">
+    </div>
+    <div class="party">
+      <label for="fdpInput" id="fdpInputLabel">FDP:</label>
+      <input type="number" id="fdpInput" value="7" min="0" max="100">
+    </div>
+    <div class="party">
+      <label for="leftInput" id="leftInputLabel">The Left:</label>
+      <input type="number" id="leftInput" value="5" min="0" max="100">
+    </div>
+    <div class="party">
+      <label for="afdInput" id="afdInputLabel">AfD:</label>
+      <input type="number" id="afdInput" value="10" min="0" max="100">
+    </div>
+  </div>
+</div>
+
+<!-- 3. Compute Seat Distribution -->
+<button type="button" id="computeSeatsBtn" onclick="computeSeats()">3. Compute Seat Distribution</button>
+
+<!-- Results Container -->
+<div class="section" id="resultsContainer"></div>
+
+<!-- 4. Build a Coalition -->
+<div class="section" id="coalitionContainer">
+  <h2 id="buildCoalitionTitle">4. Build a Coalition</h2>
+  <p id="buildCoalitionDesc">Click on a party logo to toggle its inclusion in your coalition.</p>
+  <div class="coalition-parties">
+    <div class="party-box" id="coalition-cdu" data-party="cdu" onclick="toggleBox(this)">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/0/0e/CDU_Logo_2023.svg" alt="CDU Logo" class="party-logo">
+      <span class="seat-count"></span>
+      <span class="english-name"></span>
+    </div>
+    <div class="party-box" id="coalition-spd" data-party="spd" onclick="toggleBox(this)">
+      <img src="https://1000logos.net/wp-content/uploads/2025/01/Social-Democratic-Party-of-Germany-SPD-Logo-2021.png" alt="SPD Logo" class="party-logo">
+      <span class="seat-count"></span>
+      <span class="english-name"></span>
+    </div>
+    <div class="party-box" id="coalition-greens" data-party="greens" onclick="toggleBox(this)">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/B%C3%BCndnis_90_-_Die_Gr%C3%BCnen_Logo.svg/640px-B%C3%BCndnis_90_-_Die_Gr%C3%BCnen_Logo.svg.png" alt="Greens Logo" class="party-logo">
+      <span class="seat-count"></span>
+      <span class="english-name"></span>
+    </div>
+    <div class="party-box" id="coalition-fdp" data-party="fdp" onclick="toggleBox(this)">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Logo_der_Freien_Demokraten.svg/516px-Logo_der_Freien_Demokraten.svg.png?20241111052234" alt="FDP Logo" class="party-logo">
+      <span class="seat-count"></span>
+      <span class="english-name"></span>
+    </div>
+    <div class="party-box" id="coalition-left" data-party="left" onclick="toggleBox(this)">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/Logo_Die_Linke_%282023%29.svg/1200px-Logo_Die_Linke_%282023%29.svg.png" alt="The Left Logo" class="party-logo">
+      <span class="seat-count"></span>
+      <span class="english-name"></span>
+    </div>
+    <div class="party-box" id="coalition-afd" data-party="afd" onclick="toggleBox(this)">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/AfD_Logo_2021.svg/2560px-AfD_Logo_2021.svg.png" alt="AfD Logo" class="party-logo">
+      <span class="seat-count"></span>
+      <span class="english-name"></span>
+    </div>
+  </div>
+  <div style="margin-top:20px;">
+    <button type="button" id="checkCoalitionBtn" onclick="computeCoalition()">Check Coalition Seats</button>
+  </div>
+  <div id="coalitionResult"></div>
+</div>
+
+<!-- Canvas for Seat Arc -->
+<canvas id="seatCanvas" width="800" height="400"></canvas>
+
+<script>
+  /* ==========================
+     Global Variables & Data
+     ========================== */
+  const TOTAL_SEATS = 736;
+  // 10 poll entries
+  const pollData = [
+    { name: "INSA (Feb 2025)",    cdu: 28, spd: 20, greens: 17, fdp: 7,  left: 5,  afd: 10 },
+    { name: "Forsa (Feb 2025)",   cdu: 27, spd: 21, greens: 16, fdp: 8,  left: 5,  afd: 10 },
+    { name: "Allensbach (Feb)",   cdu: 29, spd: 19, greens: 16, fdp: 7,  left: 6,  afd: 10 },
+    { name: "Kantar (Feb)",       cdu: 28, spd: 22, greens: 15, fdp: 6,  left: 5,  afd: 10 },
+    { name: "YouGov (Feb)",       cdu: 30, spd: 20, greens: 14, fdp: 8,  left: 4,  afd: 10 },
+    { name: "Ipsos (Jan)",        cdu: 27, spd: 21, greens: 17, fdp: 6,  left: 6,  afd: 10 },
+    { name: "GMS (Jan)",          cdu: 28, spd: 20, greens: 17, fdp: 7,  left: 5,  afd: 10 },
+    { name: "Emnid (Jan)",        cdu: 29, spd: 19, greens: 15, fdp: 7,  left: 6,  afd: 11 },
+    { name: "FGW (Jan)",          cdu: 28, spd: 21, greens: 16, fdp: 6,  left: 5,  afd: 10 },
+    { name: "Civey (Jan)",        cdu: 27, spd: 20, greens: 18, fdp: 6,  left: 5,  afd: 10 }
+  ];
+
+  let seatDistribution = null;
+  const partyColors = {
+    cdu:    "#333333",
+    spd:    "#eb001f",
+    greens: "#64a12d",
+    fdp:    "#ffed00",
+    left:   "#be3075",
+    afd:    "#009ee0"
+  };
+  const partyEnglish = {
+    cdu:    "Christian Democratic Union / Christian Social Union",
+    spd:    "Social Democratic Party",
+    greens: "Alliance 90/The Greens",
+    fdp:    "Free Democratic Party",
+    left:   "The Left",
+    afd:    "Alternative for Germany"
+  };
+  // Order for drawing seats in the arc (left → right)
+  const seatOrder = ["left", "spd", "greens", "fdp", "cdu", "afd"];
+
+  let isDarkMode = false;
+  let currentLang = "en";
+  const i18n = {
+    en: {
+      mainTitle: "German Election Poll Simulator",
+      languageLabel: "Language:",
+      darkModeBtn: "Toggle Dark Mode",
+      chooseModeTitle: "1. Choose Mode",
+      pollMode: "Use a Poll",
+      customMode: "Custom (Enter your own percentages)",
+      pollSelectLabel: "Select a Poll:",
+      enterPartyTitle: "2. Enter Party Percentages",
+      enterPartyDesc: "You can leave totals below 100% (remaining % is non‑voters/undecided). Above 100% is invalid.",
+      computeSeatsBtn: "3. Compute Seat Distribution",
+      buildCoalitionTitle: "4. Build a Coalition",
+      buildCoalitionDesc: "Click on a party logo to toggle its inclusion in your coalition.",
+      checkCoalitionBtn: "Check Coalition Seats",
+      cduLabel: "CDU/CSU:",
+      spdLabel: "SPD:",
+      greensLabel: "Greens:",
+      fdpLabel: "FDP:",
+      leftLabel: "The Left:",
+      afdLabel: "AfD:"
+    },
+    he: {
+      mainTitle: "מדמה בחירות בגרמניה",
+      languageLabel: "שפה:",
+      darkModeBtn: "החלף מצב כהה",
+      chooseModeTitle: "1. בחר מצב",
+      pollMode: "השתמש בסקר",
+      customMode: "מותאם אישית (הזן אחוזים משלך)",
+      pollSelectLabel: "בחר סקר:",
+      enterPartyTitle: "2. הזן אחוזים לכל מפלגה",
+      enterPartyDesc: "ניתן להזין סכום מתחת ל-100% (השאר אחוזים ללא מצביעים). מעל 100% לא תקין.",
+      computeSeatsBtn: "3. חשב חלוקת מושבים",
+      buildCoalitionTitle: "4. הקם קואליציה",
+      buildCoalitionDesc: "לחץ על לוגו מפלגה כדי להוסיף אותה לקואליציה.",
+      checkCoalitionBtn: "בדוק מושבי קואליציה",
+      cduLabel: "CDU/CSU:",
+      spdLabel: "SPD:",
+      greensLabel: "הירוקים:",
+      fdpLabel: "FDP:",
+      leftLabel: "די לינקה:",
+      afdLabel: "AfD:"
+    },
+    de: {
+      mainTitle: "Umfragesimulator für die Bundestagswahl",
+      languageLabel: "Sprache:",
+      darkModeBtn: "Dunkelmodus umschalten",
+      chooseModeTitle: "1. Modus wählen",
+      pollMode: "Umfrage benutzen",
+      customMode: "Eigene Prozentsätze eingeben",
+      pollSelectLabel: "Wählen Sie eine Umfrage:",
+      enterPartyTitle: "2. Prozente für Parteien eingeben",
+      enterPartyDesc: "Sie können unter 100% bleiben (Rest sind Nichtwähler). Über 100% ist ungültig.",
+      computeSeatsBtn: "3. Sitzverteilung berechnen",
+      buildCoalitionTitle: "4. Koalition bilden",
+      buildCoalitionDesc: "Klicken Sie auf ein Parteilogo, um es Ihrer Koalition hinzuzufügen.",
+      checkCoalitionBtn: "Koalitionssitze prüfen",
+      cduLabel: "CDU/CSU:",
+      spdLabel: "SPD:",
+      greensLabel: "Grüne:",
+      fdpLabel: "FDP:",
+      leftLabel: "Die Linke:",
+      afdLabel: "AfD:"
+    }
+  };
+
+  /* ==========================
+     Utility: Get Selected Parties
+     ========================== */
+  function getSelectedParties() {
+    const boxes = document.getElementsByClassName("party-box");
+    const selected = new Set();
+    for (let box of boxes) {
+      if (box.classList.contains("selected")) {
+        selected.add(box.getAttribute("data-party"));
+      }
+    }
+    return selected;
+  }
+
+  /* ==========================
+     Initialization
+     ========================== */
+  function initPage() {
+    // Populate poll dropdown with all 10 entries
+    const pollSelect = document.getElementById("pollSelect");
+    pollData.forEach((poll, index) => {
+      const opt = document.createElement("option");
+      opt.value = index;
+      opt.textContent = poll.name;
+      pollSelect.appendChild(opt);
+    });
+    // Apply default language
+    applyLanguage();
+  }
+
+  /* ==========================
+     Toggle Coalition Box (No arc redraw here)
+     ========================== */
+  function toggleBox(boxElem) {
+    boxElem.classList.toggle("selected");
+    // Do NOT redraw arc here; arc will update only when "Check Coalition Seats" is clicked.
+  }
+
+  /* ==========================
+     Dark Mode
+     ========================== */
+  function toggleDarkMode() {
+    isDarkMode = !isDarkMode;
+    document.body.classList.toggle("dark-mode", isDarkMode);
+    const t = i18n[currentLang] || i18n.en;
+    document.getElementById("darkModeBtn").textContent = isDarkMode
+      ? t.darkModeBtn + " (ON)"
+      : t.darkModeBtn;
+  }
+
+  /* ==========================
+     Language Functions
+     ========================== */
+  function onLanguageChange() {
+    currentLang = document.getElementById("languageSelect").value;
+    applyLanguage();
+  }
+
+  function applyLanguage() {
+    const t = i18n[currentLang] || i18n.en;
+    document.getElementById("mainTitle").textContent = t.mainTitle;
+    document.getElementById("languageLabel").textContent = t.languageLabel;
+    document.getElementById("darkModeBtn").textContent = t.darkModeBtn;
+    document.getElementById("chooseModeTitle").textContent = t.chooseModeTitle;
+    document.querySelector("#modeSelect option[value='poll']").textContent = t.pollMode;
+    document.querySelector("#modeSelect option[value='custom']").textContent = t.customMode;
+    document.getElementById("pollSelectLabel").textContent = t.pollSelectLabel;
+    document.getElementById("enterPartyTitle").textContent = t.enterPartyTitle;
+    document.getElementById("enterPartyDesc").textContent = t.enterPartyDesc;
+    document.getElementById("computeSeatsBtn").textContent = t.computeSeatsBtn;
+    document.getElementById("buildCoalitionTitle").textContent = t.buildCoalitionTitle;
+    document.getElementById("buildCoalitionDesc").textContent = t.buildCoalitionDesc;
+    document.getElementById("checkCoalitionBtn").textContent = t.checkCoalitionBtn;
+    document.getElementById("cduInputLabel").textContent = t.cduLabel;
+    document.getElementById("spdInputLabel").textContent = t.spdLabel;
+    document.getElementById("greensInputLabel").textContent = t.greensLabel;
+    document.getElementById("fdpInputLabel").textContent = t.fdpLabel;
+    document.getElementById("leftInputLabel").textContent = t.leftLabel;
+    document.getElementById("afdInputLabel").textContent = t.afdLabel;
+  }
+
+  /* ==========================
+     Mode Switching & Poll Loading
+     ========================== */
+  function switchMode() {
+    const mode = document.getElementById("modeSelect").value;
+    const pollSelectContainer = document.getElementById("pollSelectContainer");
+    const customContainer = document.getElementById("customContainer");
+    if (mode === "poll") {
+      pollSelectContainer.style.display = "block";
+      customContainer.style.display = "none";
+    } else {
+      pollSelectContainer.style.display = "none";
+      customContainer.style.display = "block";
+    }
+  }
+
+  function loadPollData() {
+    const pollIndex = document.getElementById("pollSelect").value;
+    const poll = pollData[pollIndex];
+    if (!poll) return;
+    document.getElementById("cduInput").value = poll.cdu;
+    document.getElementById("spdInput").value = poll.spd;
+    document.getElementById("greensInput").value = poll.greens;
+    document.getElementById("fdpInput").value = poll.fdp;
+    document.getElementById("leftInput").value = poll.left;
+    document.getElementById("afdInput").value = poll.afd;
+  }
+
+  /* ==========================
+     Compute Seats & Draw Arc (with Highlight)
+     ========================== */
+  function computeSeats() {
+    const cduPctRaw    = parseFloat(document.getElementById("cduInput").value) || 0;
+    const spdPctRaw    = parseFloat(document.getElementById("spdInput").value) || 0;
+    const greensPctRaw = parseFloat(document.getElementById("greensInput").value) || 0;
+    const fdpPctRaw    = parseFloat(document.getElementById("fdpInput").value) || 0;
+    const leftPctRaw   = parseFloat(document.getElementById("leftInput").value) || 0;
+    const afdPctRaw    = parseFloat(document.getElementById("afdInput").value) || 0;
+    let totalPctRaw = cduPctRaw + spdPctRaw + greensPctRaw + fdpPctRaw + leftPctRaw + afdPctRaw;
+    if (totalPctRaw > 100) {
+      document.getElementById("resultsContainer").innerHTML =
+        `<p class="error">Party percentages cannot exceed 100%. Currently: ${totalPctRaw}%</p>`;
+      seatDistribution = null;
+      clearCanvas();
+      return;
+    }
+    let nonVoterPct = 0;
+    let cduPct, spdPct, greensPct, fdpPct, leftPct, afdPct;
+    if (totalPctRaw < 100 && totalPctRaw > 0) {
+      nonVoterPct = 100 - totalPctRaw;
+      cduPct    = (cduPctRaw / totalPctRaw) * 100;
+      spdPct    = (spdPctRaw / totalPctRaw) * 100;
+      greensPct = (greensPctRaw / totalPctRaw) * 100;
+      fdpPct    = (fdpPctRaw / totalPctRaw) * 100;
+      leftPct   = (leftPctRaw / totalPctRaw) * 100;
+      afdPct    = (afdPctRaw / totalPctRaw) * 100;
+    } else if (totalPctRaw === 0) {
+      document.getElementById("resultsContainer").innerHTML =
+        `<p class="error">All percentages are zero. Cannot allocate seats.</p>`;
+      seatDistribution = null;
+      clearCanvas();
+      return;
+    } else {
+      cduPct    = cduPctRaw;
+      spdPct    = spdPctRaw;
+      greensPct = greensPctRaw;
+      fdpPct    = fdpPctRaw;
+      leftPct   = leftPctRaw;
+      afdPct    = afdPctRaw;
+    }
+    const cduSeats    = Math.round((cduPct / 100) * TOTAL_SEATS);
+    const spdSeats    = Math.round((spdPct / 100) * TOTAL_SEATS);
+    const greensSeats = Math.round((greensPct / 100) * TOTAL_SEATS);
+    const fdpSeats    = Math.round((fdpPct / 100) * TOTAL_SEATS);
+    const leftSeats   = Math.round((leftPct / 100) * TOTAL_SEATS);
+    const afdSeats    = Math.round((afdPct / 100) * TOTAL_SEATS);
+    seatDistribution = {
+      cdu: cduSeats,
+      spd: spdSeats,
+      greens: greensSeats,
+      fdp: fdpSeats,
+      left: leftSeats,
+      afd: afdSeats
+    };
+    let output = `<h3>Seat Distribution</h3><ul>`;
+    output += `<li><span class="color-indicator" style="background:${partyColors.cdu};"></span><strong>CDU/CSU</strong>: ${cduSeats} seats</li>`;
+    output += `<li><span class="color-indicator" style="background:${partyColors.spd};"></span><strong>SPD</strong>: ${spdSeats} seats</li>`;
+    output += `<li><span class="color-indicator" style="background:${partyColors.greens};"></span><strong>Greens</strong>: ${greensSeats} seats</li>`;
+    output += `<li><span class="color-indicator" style="background:${partyColors.fdp};"></span><strong>FDP</strong>: ${fdpSeats} seats</li>`;
+    output += `<li><span class="color-indicator" style="background:${partyColors.left};"></span><strong>The Left</strong>: ${leftSeats} seats</li>`;
+    output += `<li><span class="color-indicator" style="background:${partyColors.afd};"></span><strong>AfD</strong>: ${afdSeats} seats</li>`;
+    output += `</ul>`;
+    const allocated = cduSeats + spdSeats + greensSeats + fdpSeats + leftSeats + afdSeats;
+    output += `<p>Total seats allocated: ${allocated} (of ${TOTAL_SEATS}).</p>`;
+    if (nonVoterPct > 0) {
+      output += `<p><em>Note:</em> ~${nonVoterPct.toFixed(1)}% are non‑voters/undecided (parties normalized to 100%).</p>`;
+    }
+    document.getElementById("resultsContainer").innerHTML = output;
+    // Update coalition boxes with seat counts and English names
+    document.getElementById("coalition-cdu").querySelector(".seat-count").textContent    = `(${cduSeats} seats)`;
+    document.getElementById("coalition-cdu").querySelector(".english-name").textContent  = partyEnglish.cdu;
+    document.getElementById("coalition-spd").querySelector(".seat-count").textContent    = `(${spdSeats} seats)`;
+    document.getElementById("coalition-spd").querySelector(".english-name").textContent  = partyEnglish.spd;
+    document.getElementById("coalition-greens").querySelector(".seat-count").textContent = `(${greensSeats} seats)`;
+    document.getElementById("coalition-greens").querySelector(".english-name").textContent = partyEnglish.greens;
+    document.getElementById("coalition-fdp").querySelector(".seat-count").textContent    = `(${fdpSeats} seats)`;
+    document.getElementById("coalition-fdp").querySelector(".english-name").textContent  = partyEnglish.fdp;
+    document.getElementById("coalition-left").querySelector(".seat-count").textContent   = `(${leftSeats} seats)`;
+    document.getElementById("coalition-left").querySelector(".english-name").textContent = partyEnglish.left;
+    document.getElementById("coalition-afd").querySelector(".seat-count").textContent    = `(${afdSeats} seats)`;
+    document.getElementById("coalition-afd").querySelector(".english-name").textContent  = partyEnglish.afd;
+    // Draw the seat arc with updated highlight based on selected parties
+    drawSeatArc(seatDistribution);
+    document.getElementById("coalitionResult").innerHTML =
+      "<em>Click on party logos above to toggle selection, then press 'Check Coalition Seats'.</em>";
+  }
+
+  /* ==========================
+     Draw Seat Arc with Highlighting
+     ========================== */
+  function drawSeatArc(dist) {
+    const canvas = document.getElementById("seatCanvas");
+    const ctx = canvas.getContext("2d");
+    clearCanvas();
+    if (!dist) return;
+    let total = 0;
+    for (let p in dist) { total += dist[p]; }
+    if (total === 0) return;
+    // Get selected parties; unselected parties will be drawn in light gray.
+    const selectedParties = getSelectedParties();
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height * 0.35;
+    const arcRadius = canvas.height * 0.3;
+    const seatRadius = 5;
+    const seatSpacing = Math.PI / total;
+    let currentAngle = Math.PI; // Start at 180° (left)
+    seatOrder.forEach(party => {
+      const seats = dist[party] || 0;
+      const color = partyColors[party] || "#999";
+      // If party is selected, use full party color; if not, use light gray.
+      const drawColor = selectedParties.has(party) ? color : "#ccc";
+      for (let i = 0; i < seats; i++) {
+        ctx.beginPath();
+        const x = centerX + arcRadius * Math.cos(currentAngle);
+        const y = centerY + arcRadius * Math.sin(currentAngle);
+        ctx.arc(x, y, seatRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = drawColor;
+        ctx.fill();
+        currentAngle -= seatSpacing;
+      }
+    });
+  }
+
+  /* ==========================
+     Clear Canvas
+     ========================== */
+  function clearCanvas() {
+    const canvas = document.getElementById("seatCanvas");
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  /* ==========================
+     Compute Coalition
+     ========================== */
+  function computeCoalition() {
+    if (!seatDistribution) {
+      document.getElementById("coalitionResult").innerHTML =
+        `<p class="error">Please compute seat distribution first.</p>`;
+      return;
+    }
+    let coalitionSeats = 0;
+    const boxes = document.getElementsByClassName("party-box");
+    for (let box of boxes) {
+      if (box.classList.contains("selected")) {
+        const party = box.getAttribute("data-party");
+        coalitionSeats += seatDistribution[party] || 0;
+      }
+    }
+    const majorityNeeded = Math.floor(TOTAL_SEATS / 2) + 1;
+    let msg = `<p>Your coalition has <strong>${coalitionSeats}</strong> of ${TOTAL_SEATS} seats. `;
+    if (coalitionSeats >= majorityNeeded) {
+      msg += `That’s enough for a majority (need ${majorityNeeded}+).`;
+    } else {
+      msg += `Not enough for a majority (need ${majorityNeeded}+).`;
+    }
+    msg += "</p>";
+    document.getElementById("coalitionResult").innerHTML = msg;
+    // Redraw arc to reflect selection only when "Check Coalition Seats" is clicked.
+    drawSeatArc(seatDistribution);
+  }
+
+  /* ==========================
+     Initialization
+     ========================== */
+  function initPage() {
+    // Populate poll dropdown with all 10 entries
+    const pollSelect = document.getElementById("pollSelect");
+    pollData.forEach((poll, index) => {
+      const opt = document.createElement("option");
+      opt.value = index;
+      opt.textContent = poll.name;
+      pollSelect.appendChild(opt);
+    });
+    // Apply default language
+    applyLanguage();
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    initPage();
+    document.getElementById("modeSelect").addEventListener("change", switchMode);
+  });
+</script>
+
+</body>
+</html>
